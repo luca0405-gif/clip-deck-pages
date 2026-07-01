@@ -1,0 +1,538 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Clip Deck — Autopilot Console</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;800&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#15130F;
+    --panel:#1E1B15;
+    --panel-alt:#262219;
+    --border:#3A3428;
+    --text:#F3EEE1;
+    --text-muted:#9C927D;
+    --accent:#FF5A1F;
+    --accent-dim:#5A2A12;
+    --good:#3ECF8E;
+    --bad:#FF5C5C;
+    --pending:#E8B84B;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:
+      radial-gradient(1200px 500px at 15% -10%, rgba(255,90,31,0.08), transparent 60%),
+      var(--bg);
+    color:var(--text);
+    font-family:'Inter',sans-serif;
+    min-height:100vh;
+  }
+  .mono{font-family:'JetBrains Mono',monospace;}
+  .display{font-family:'Big Shoulders Display',sans-serif; font-weight:800; letter-spacing:0.02em;}
+
+  a{color:inherit;}
+  button{font-family:inherit; cursor:pointer;}
+
+  /* ---------- Header ---------- */
+  header{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:22px 32px; border-bottom:1px solid var(--border);
+    position:sticky; top:0; background:rgba(21,19,15,0.92); backdrop-filter:blur(6px); z-index:20;
+  }
+  .brand{display:flex; align-items:baseline; gap:10px;}
+  .brand .eyebrow{font-family:'JetBrains Mono',monospace; font-size:11px; letter-spacing:0.18em; color:var(--text-muted); text-transform:uppercase;}
+  .brand h1{font-size:28px; margin:0; line-height:1;}
+
+  .airswitch{
+    display:flex; align-items:center; gap:14px;
+    padding:8px 10px 8px 18px; border:1px solid var(--border); border-radius:999px;
+    background:var(--panel);
+  }
+  .airswitch .label{font-family:'JetBrains Mono',monospace; font-size:12px; letter-spacing:0.12em; color:var(--text-muted);}
+  .tally{
+    width:14px; height:14px; border-radius:50%;
+    background:#4a4436; box-shadow:inset 0 0 0 2px #2a2619;
+    transition:background .25s ease, box-shadow .25s ease;
+  }
+  .tally.on{ background:var(--accent); box-shadow:0 0 0 4px rgba(255,90,31,0.18), 0 0 16px 2px rgba(255,90,31,0.55); animation:pulse 1.8s ease-in-out infinite; }
+  @keyframes pulse{ 0%,100%{opacity:1;} 50%{opacity:.65;} }
+  .toggle-btn{
+    border:none; border-radius:999px; padding:10px 20px;
+    font-family:'Big Shoulders Display',sans-serif; font-weight:800; font-size:16px; letter-spacing:0.04em;
+    background:var(--accent-dim); color:var(--text);
+  }
+  .toggle-btn.is-on{ background:var(--accent); color:#1b0e05; }
+
+  /* ---------- Layout ---------- */
+  .layout{
+    display:grid; grid-template-columns:340px 1fr; gap:24px;
+    padding:28px 32px 60px; max-width:1400px; margin:0 auto;
+  }
+  @media (max-width:900px){ .layout{ grid-template-columns:1fr; } }
+
+  .panel{
+    background:var(--panel); border:1px solid var(--border); border-radius:14px;
+    padding:20px 22px; margin-bottom:20px;
+  }
+  .panel h2{
+    font-family:'JetBrains Mono',monospace; font-size:12px; letter-spacing:0.16em;
+    text-transform:uppercase; color:var(--text-muted); margin:0 0 16px;
+  }
+  .field{ margin-bottom:14px; }
+  .field label{ display:block; font-size:12.5px; color:var(--text-muted); margin-bottom:6px; }
+  .field input, .field select{
+    width:100%; padding:9px 11px; border-radius:8px; border:1px solid var(--border);
+    background:var(--panel-alt); color:var(--text); font-family:'JetBrains Mono',monospace; font-size:13px;
+  }
+  .field input:focus, .field select:focus{ outline:2px solid var(--accent); outline-offset:1px; }
+  .row2{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+
+  .btn{
+    border:1px solid var(--border); background:var(--panel-alt); color:var(--text);
+    border-radius:8px; padding:9px 16px; font-size:13.5px; font-weight:600;
+  }
+  .btn:hover{ border-color:var(--accent); }
+  .btn.primary{ background:var(--accent); color:#1b0e05; border-color:var(--accent); font-weight:700; }
+  .btn.primary:hover{ filter:brightness(1.08); }
+  .btn:disabled{ opacity:.45; cursor:not-allowed; }
+
+  .status-pill{
+    display:inline-flex; align-items:center; gap:6px; padding:4px 10px; border-radius:999px;
+    font-family:'JetBrains Mono',monospace; font-size:11.5px; letter-spacing:0.06em;
+    border:1px solid var(--border); color:var(--text-muted);
+  }
+  .status-pill.good{ color:var(--good); border-color:rgba(62,207,142,0.4); }
+  .status-pill.bad{ color:var(--bad); border-color:rgba(255,92,92,0.4); }
+  .status-pill.pending{ color:var(--pending); border-color:rgba(232,184,75,0.4); }
+
+  /* ---------- Programming strip (Signature) ---------- */
+  .strip-wrap{ overflow-x:auto; }
+  .strip-day{ margin-bottom:14px; }
+  .strip-day .day-label{ font-family:'JetBrains Mono',monospace; font-size:11.5px; color:var(--text-muted); margin-bottom:6px; }
+  .strip-track{
+    position:relative; height:54px; border-radius:8px;
+    background:repeating-linear-gradient(90deg, var(--panel-alt) 0 1px, transparent 1px calc(100%/24));
+    border:1px solid var(--border);
+  }
+  .strip-block{
+    position:absolute; top:6px; bottom:6px; min-width:6px; border-radius:5px;
+    background:var(--pending); opacity:0.9;
+    display:flex; align-items:center; padding:0 8px; overflow:hidden; white-space:nowrap;
+    font-family:'JetBrains Mono',monospace; font-size:10.5px; color:#1b1305; font-weight:600;
+    cursor:default;
+  }
+  .strip-block.done, .strip-block.draft_sent{ background:var(--good); color:#06231a; }
+  .strip-block.failed{ background:var(--bad); color:#2a0808; }
+  .strip-block.uploading{ background:#7cb8ff; color:#08192b; }
+
+  /* ---------- Queue table ---------- */
+  table{ width:100%; border-collapse:collapse; font-size:13px; }
+  th{ text-align:left; font-family:'JetBrains Mono',monospace; font-size:11px; letter-spacing:0.1em; color:var(--text-muted); padding:8px 10px; border-bottom:1px solid var(--border); text-transform:uppercase;}
+  td{ padding:9px 10px; border-bottom:1px solid var(--border); vertical-align:top; }
+  tr:last-child td{ border-bottom:none; }
+  .job-status{ font-family:'JetBrains Mono',monospace; font-size:11px; padding:3px 8px; border-radius:6px; display:inline-block; }
+  .job-status.pending{ background:rgba(232,184,75,0.15); color:var(--pending); }
+  .job-status.done, .job-status.draft_sent{ background:rgba(62,207,142,0.15); color:var(--good); }
+  .job-status.failed{ background:rgba(255,92,92,0.15); color:var(--bad); }
+  .job-status.uploading{ background:rgba(124,184,255,0.15); color:#7cb8ff; }
+
+  .empty{ color:var(--text-muted); font-size:13px; padding:14px 0; }
+
+  /* ---------- Log feed ---------- */
+  .log-feed{ max-height:260px; overflow-y:auto; font-family:'JetBrains Mono',monospace; font-size:12px; line-height:1.7; }
+  .log-line{ color:var(--text-muted); }
+  .log-line .t{ color:#6b634f; margin-right:8px; }
+  .log-line.error{ color:var(--bad); }
+  .log-line.warn{ color:var(--pending); }
+
+  .clip-list{ display:flex; flex-wrap:wrap; gap:8px; }
+  .clip-chip{
+    font-family:'JetBrains Mono',monospace; font-size:11.5px; padding:6px 10px;
+    background:var(--panel-alt); border:1px solid var(--border); border-radius:7px; color:var(--text-muted);
+  }
+
+  .hint{ font-size:12px; color:var(--text-muted); margin-top:8px; line-height:1.5; }
+  .grid-2col{ display:grid; grid-template-columns:1fr 1fr; gap:24px; }
+  @media (max-width:1100px){ .grid-2col{ grid-template-columns:1fr; } }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <h1 class="display">CLIP DECK</h1>
+    <span class="eyebrow">Autopilot Console</span>
+  </div>
+  <div style="display:flex; align-items:center; gap:14px;">
+    <span id="authPill" class="status-pill">TikTok: prüfe…</span>
+    <div class="airswitch">
+      <div id="tally" class="tally"></div>
+      <span class="label" id="airLabel">OFF AIR</span>
+      <button id="airToggle" class="toggle-btn">Autopilot starten</button>
+    </div>
+  </div>
+</header>
+
+<div class="layout">
+
+  <!-- LEFT COLUMN -->
+  <div>
+    <div class="panel">
+      <h2>Quelle &amp; Zeitplan</h2>
+      <div class="field">
+        <label>Kanal-URL (Twitch/YouTube)</label>
+        <input id="cfgChannel" type="text" placeholder="https://www.twitch.tv/kanalname">
+      </div>
+      <div class="row2">
+        <div class="field">
+          <label>Check-Intervall (Min.)</label>
+          <input id="cfgInterval" type="number" min="5">
+        </div>
+        <div class="field">
+          <label>Clips pro Video</label>
+          <input id="cfgClipsPerVideo" type="number" min="1">
+        </div>
+      </div>
+      <div class="field">
+        <label>Posting-Zeiten (kommagetrennt, HH:MM)</label>
+        <input id="cfgPostingTimes" type="text" placeholder="12:00, 18:00, 21:00">
+      </div>
+      <button class="btn primary" id="saveConfigBtn" style="width:100%;">Einstellungen speichern</button>
+      <div class="hint" id="configHint"></div>
+    </div>
+
+    <div class="panel">
+      <h2>TikTok-Verbindung</h2>
+      <div class="field">
+        <label>Client Key</label>
+        <input id="cfgClientKey" type="text" placeholder="aus developers.tiktok.com">
+      </div>
+      <div class="field">
+        <label>Client Secret <span class="mono" id="secretHint" style="color:var(--text-muted);"></span></label>
+        <input id="cfgClientSecret" type="password" placeholder="unverändert lassen = alten Wert behalten">
+      </div>
+      <div class="field">
+        <label>Redirect-URI</label>
+        <input id="cfgRedirectUri" type="text" placeholder="http://localhost:8912/callback">
+      </div>
+      <div class="field">
+        <label>Sichtbarkeit (bis Audit erfolgt: immer SELF_ONLY)</label>
+        <select id="cfgPrivacy">
+          <option value="SELF_ONLY">Nur ich (SELF_ONLY)</option>
+          <option value="PUBLIC_TO_EVERYONE">Öffentlich (erst nach Audit wirksam)</option>
+          <option value="MUTUAL_FOLLOW_FRIENDS">Gegenseitige Follower (erst nach Audit wirksam)</option>
+        </select>
+      </div>
+      <button class="btn primary" id="saveConnBtn" style="width:100%; margin-bottom:10px;">Verbindung speichern</button>
+      <button class="btn" id="loginBtn" style="width:100%;">Bei TikTok anmelden</button>
+      <div class="hint">Öffnet ein Browser-Fenster für den Login. Danach hier zurückkommen.</div>
+    </div>
+
+    <div class="panel">
+      <h2>Clip-Einstellungen</h2>
+      <div class="row2">
+        <div class="field">
+          <label>Cliplänge (Sek.)</label>
+          <input id="cfgClipDuration" type="number" min="5">
+        </div>
+        <div class="field">
+          <label>Mindestabstand (Sek.)</label>
+          <input id="cfgMinGap" type="number" min="0">
+        </div>
+      </div>
+      <div class="field">
+        <label>Format</label>
+        <select id="cfgVerticalMode">
+          <option value="blur">Weichgezeichneter Hintergrund (blur)</option>
+          <option value="crop">Mittig zuschneiden (crop)</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Max. neue Videos pro Kanal-Check</label>
+        <input id="cfgMaxNew" type="number" min="1">
+      </div>
+      <button class="btn primary" id="saveClipBtn" style="width:100%;">Clip-Einstellungen speichern</button>
+    </div>
+
+    <div class="panel">
+      <h2>Einzelnes Video verarbeiten</h2>
+      <div class="field">
+        <label>Video-URL</label>
+        <input id="processUrl" type="text" placeholder="https://www.twitch.tv/videos/…">
+      </div>
+      <div class="field">
+        <label>Anzahl Clips</label>
+        <input id="processClips" type="number" min="1" value="3">
+      </div>
+      <button class="btn" id="processBtn" style="width:100%;">Jetzt clippen</button>
+      <div class="hint">Läuft im Hintergrund. Fertige Clips erscheinen unten und im Log.</div>
+    </div>
+  </div>
+
+  <!-- RIGHT COLUMN -->
+  <div>
+    <div class="panel">
+      <h2>Programmleiste — nächste geplante Posts</h2>
+      <div class="strip-wrap" id="stripWrap"><div class="empty">Noch keine geplanten Posts.</div></div>
+    </div>
+
+    <div class="grid-2col">
+      <div class="panel">
+        <h2>Warteschlange</h2>
+        <div id="jobsTableWrap"><div class="empty">Keine Jobs vorhanden.</div></div>
+      </div>
+      <div class="panel">
+        <h2>Erzeugte Clips</h2>
+        <div class="clip-list" id="clipList"><div class="empty">Noch keine Clips.</div></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Aktivität</h2>
+      <div class="log-feed" id="logFeed"></div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+const API = '';
+
+async function getJSON(url, opts){
+  const res = await fetch(url, opts);
+  if(!res.ok){ throw new Error((await res.json()).error || res.statusText); }
+  return res.json();
+}
+
+function fmtTime(iso){
+  if(!iso) return '';
+  const d = new Date(iso);
+  if(isNaN(d)) return iso;
+  return d.toLocaleString('de-DE', {weekday:'short', day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit'});
+}
+
+// ---------- Config ----------
+let currentCfg = null;
+
+async function loadConfig(){
+  currentCfg = await getJSON('/api/config');
+  document.getElementById('cfgChannel').value = currentCfg.automation?.source_channel_url || '';
+  document.getElementById('cfgInterval').value = currentCfg.automation?.check_interval_minutes ?? 30;
+  document.getElementById('cfgClipsPerVideo').value = currentCfg.automation?.clips_per_video ?? 3;
+  document.getElementById('cfgPostingTimes').value = (currentCfg.automation?.posting_times || []).join(', ');
+  document.getElementById('cfgMaxNew').value = currentCfg.automation?.max_new_videos_per_check ?? 1;
+
+  document.getElementById('cfgClientKey').value = currentCfg.tiktok?.client_key || '';
+  document.getElementById('cfgRedirectUri').value = currentCfg.tiktok?.redirect_uri || '';
+  document.getElementById('cfgPrivacy').value = currentCfg.tiktok?.default_privacy_level || 'SELF_ONLY';
+  document.getElementById('secretHint').textContent = currentCfg.tiktok?.client_secret_set ? '(gesetzt)' : '(nicht gesetzt)';
+
+  document.getElementById('cfgClipDuration').value = currentCfg.clipping?.clip_duration_seconds ?? 45;
+  document.getElementById('cfgMinGap').value = currentCfg.clipping?.min_gap_seconds ?? 60;
+  document.getElementById('cfgVerticalMode').value = currentCfg.clipping?.vertical_mode || 'blur';
+}
+
+document.getElementById('saveConfigBtn').onclick = async () => {
+  const hint = document.getElementById('configHint');
+  hint.textContent = 'Speichere…';
+  try{
+    const posting_times = document.getElementById('cfgPostingTimes').value
+      .split(',').map(s => s.trim()).filter(Boolean);
+    await getJSON('/api/config', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({
+        automation:{
+          source_channel_url: document.getElementById('cfgChannel').value.trim(),
+          check_interval_minutes: parseInt(document.getElementById('cfgInterval').value || '30'),
+          clips_per_video: parseInt(document.getElementById('cfgClipsPerVideo').value || '3'),
+          max_new_videos_per_check: parseInt(document.getElementById('cfgMaxNew').value || '1'),
+          posting_times,
+        },
+      })
+    });
+    hint.textContent = 'Gespeichert.';
+    loadConfig();
+  }catch(e){ hint.textContent = 'Fehler: ' + e.message; }
+};
+
+document.getElementById('saveConnBtn').onclick = async () => {
+  try{
+    await getJSON('/api/config', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({
+        tiktok:{
+          client_key: document.getElementById('cfgClientKey').value.trim(),
+          client_secret: document.getElementById('cfgClientSecret').value,
+          redirect_uri: document.getElementById('cfgRedirectUri').value.trim(),
+          default_privacy_level: document.getElementById('cfgPrivacy').value,
+        }
+      })
+    });
+    document.getElementById('cfgClientSecret').value = '';
+    loadConfig();
+  }catch(e){ alert('Fehler: ' + e.message); }
+};
+
+document.getElementById('saveClipBtn').onclick = async () => {
+  try{
+    await getJSON('/api/config', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({
+        clipping:{
+          clip_duration_seconds: parseInt(document.getElementById('cfgClipDuration').value || '45'),
+          min_gap_seconds: parseInt(document.getElementById('cfgMinGap').value || '60'),
+          vertical_mode: document.getElementById('cfgVerticalMode').value,
+        }
+      })
+    });
+    loadConfig();
+  }catch(e){ alert('Fehler: ' + e.message); }
+};
+
+// ---------- Auth ----------
+document.getElementById('loginBtn').onclick = async () => {
+  await getJSON('/api/auth/login', {method:'POST'});
+  refreshStatus();
+};
+
+// ---------- Autopilot toggle ----------
+let autopilotRunning = false;
+
+document.getElementById('airToggle').onclick = async () => {
+  const btn = document.getElementById('airToggle');
+  btn.disabled = true;
+  try{
+    if(autopilotRunning){
+      await getJSON('/api/autopilot/stop', {method:'POST'});
+    } else {
+      await getJSON('/api/autopilot/start', {method:'POST'});
+    }
+  }catch(e){ alert('Fehler: ' + e.message); }
+  btn.disabled = false;
+  refreshStatus();
+};
+
+async function refreshStatus(){
+  try{
+    const s = await getJSON('/api/status');
+    autopilotRunning = s.autopilot_running;
+    document.getElementById('tally').classList.toggle('on', autopilotRunning);
+    document.getElementById('airLabel').textContent = autopilotRunning ? 'ON AIR' : 'OFF AIR';
+    const btn = document.getElementById('airToggle');
+    btn.textContent = autopilotRunning ? 'Autopilot stoppen' : 'Autopilot starten';
+    btn.classList.toggle('is-on', autopilotRunning);
+
+    const pill = document.getElementById('authPill');
+    const map = {idle:['TikTok: nicht verbunden',''], waiting:['TikTok: Login läuft…','pending'], success:['TikTok: verbunden','good'], error:['TikTok: Login fehlgeschlagen','bad']};
+    const [label, cls] = map[s.auth_status] || map.idle;
+    pill.textContent = label;
+    pill.className = 'status-pill ' + cls;
+  }catch(e){ /* Backend evtl. noch nicht bereit */ }
+}
+
+// ---------- Jobs & Programming strip ----------
+function statusLabel(s){
+  return {pending:'geplant', uploading:'lädt hoch', draft_sent:'Entwurf gesendet', done:'fertig', failed:'fehlgeschlagen'}[s] || s;
+}
+
+async function refreshJobs(){
+  let jobs = [];
+  try{ jobs = await getJSON('/api/jobs'); }catch(e){ return; }
+
+  // Tabelle
+  const wrap = document.getElementById('jobsTableWrap');
+  if(jobs.length === 0){
+    wrap.innerHTML = '<div class="empty">Keine Jobs vorhanden.</div>';
+  } else {
+    let html = '<table><thead><tr><th>Zeit</th><th>Titel</th><th>Status</th></tr></thead><tbody>';
+    jobs.slice().reverse().forEach(j => {
+      html += `<tr><td class="mono">${fmtTime(j.scheduled_time)}</td><td>${(j.title||'').slice(0,50)}</td>`
+        + `<td><span class="job-status ${j.status}">${statusLabel(j.status)}</span></td></tr>`;
+    });
+    html += '</tbody></table>';
+    wrap.innerHTML = html;
+  }
+
+  // Programmleiste: nächste 3 Tage mit pending/aktiven Jobs
+  const stripWrap = document.getElementById('stripWrap');
+  const upcoming = jobs.filter(j => ['pending','uploading','draft_sent','done'].includes(j.status));
+  if(upcoming.length === 0){
+    stripWrap.innerHTML = '<div class="empty">Noch keine geplanten Posts.</div>';
+    return;
+  }
+  const byDay = {};
+  upcoming.forEach(j => {
+    const d = new Date(j.scheduled_time);
+    if(isNaN(d)) return;
+    const key = d.toISOString().slice(0,10);
+    (byDay[key] = byDay[key] || []).push({job:j, date:d});
+  });
+  const days = Object.keys(byDay).sort().slice(0,4);
+  let html = '';
+  days.forEach(day => {
+    const label = new Date(day).toLocaleDateString('de-DE', {weekday:'long', day:'2-digit', month:'2-digit'});
+    html += `<div class="strip-day"><div class="day-label">${label}</div><div class="strip-track">`;
+    byDay[day].forEach(({job, date}) => {
+      const pct = ((date.getHours() + date.getMinutes()/60) / 24) * 100;
+      const title = (job.title || '').replace(/"/g,'');
+      html += `<div class="strip-block ${job.status}" style="left:${pct}%; width:9%;" title="${title}">`
+        + `${date.getHours().toString().padStart(2,'0')}:${date.getMinutes().toString().padStart(2,'0')}</div>`;
+    });
+    html += '</div></div>';
+  });
+  stripWrap.innerHTML = html;
+}
+
+// ---------- Clips ----------
+async function refreshClips(){
+  let clips = [];
+  try{ clips = await getJSON('/api/clips'); }catch(e){ return; }
+  const el = document.getElementById('clipList');
+  el.innerHTML = clips.length
+    ? clips.slice(0,30).map(c => `<span class="clip-chip">${c}</span>`).join('')
+    : '<div class="empty">Noch keine Clips.</div>';
+}
+
+// ---------- Process ----------
+document.getElementById('processBtn').onclick = async () => {
+  const url = document.getElementById('processUrl').value.trim();
+  if(!url) return;
+  const btn = document.getElementById('processBtn');
+  btn.disabled = true; btn.textContent = 'Läuft…';
+  try{
+    await getJSON('/api/process', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({url, clips: parseInt(document.getElementById('processClips').value || '3')})
+    });
+  }catch(e){ alert('Fehler: ' + e.message); }
+  btn.disabled = false; btn.textContent = 'Jetzt clippen';
+};
+
+// ---------- Logs ----------
+async function refreshLogs(){
+  let entries = [];
+  try{ entries = await getJSON('/api/logs'); }catch(e){ return; }
+  const feed = document.getElementById('logFeed');
+  const atBottom = feed.scrollTop + feed.clientHeight >= feed.scrollHeight - 20;
+  feed.innerHTML = entries.map(e =>
+    `<div class="log-line ${e.level}"><span class="t">${e.time}</span>${e.message}</div>`
+  ).join('') || '<div class="empty">Noch keine Aktivität.</div>';
+  if(atBottom) feed.scrollTop = feed.scrollHeight;
+}
+
+// ---------- Boot ----------
+async function tick(){
+  refreshStatus();
+  refreshJobs();
+  refreshClips();
+  refreshLogs();
+}
+loadConfig();
+tick();
+setInterval(tick, 4000);
+</script>
+</body>
+</html>
